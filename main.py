@@ -1,89 +1,107 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# 设置 matplotlib 以支持中文和负号
-plt.rcParams['font.sans-serif'] = ['SimHei']
-plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 用于显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用于显示负号
 
-def simulate(deck_size, climax_count, rest_size, rest_climax, clock_size, clock_climax, damage_list, trials=100000):
-    damage_results, refresh_counts = [], []
-
+def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
+    results, refresh_counts = [], []
     for _ in range(trials):
-        deck = ['C'] * climax_count + ['N'] * (deck_size - climax_count)
-        rest = ['C'] * rest_climax + ['N'] * (rest_size - rest_climax)
-        clock = ['C'] * clock_climax + ['N'] * (clock_size - clock_climax)
+        deck = ['C'] * N + ['N'] * (D - N)
+        rest = ['C'] * RC + ['N'] * (R - RC)
+        clock = ['C'] * CC + ['N'] * (C - CC)
         random.shuffle(deck)
         random.shuffle(rest)
         random.shuffle(clock)
-        refresh_count, total_damage = 0, 0
+        refresh_count = 0
+        total_damage = 0
+        damage_list = damage_seq.copy()
 
-        for dmg in damage_list:
-            for _ in range(dmg):
-                if not deck:
-                    # 卡组更新
-                    refresh_count += 1
-                    total_damage += 1  # 卡组更新的1点真实伤害
-                    deck, rest = rest, []  # 将休息室的卡洗入卡组
-                    random.shuffle(deck)
-                    if not deck:  # 如果休息室也空了，直接跳过此次伤害处理
-                        break
-                    # 卡组更新后抽1张放入计时区，此处不需再加伤害，因为已统计
+        def refresh_deck():
+            nonlocal refresh_count, deck, rest, total_damage
+            if not deck:
+                refresh_count += 1
+                deck, rest = rest, []
+                random.shuffle(deck)
+                if deck:
                     clock.append(deck.pop(0))
-                    if len(clock) >= 7:  # 升级处理
-                        level_up(clock, rest)
+                    total_damage += 1
 
+        def check_level_up():
+            nonlocal clock, rest
+            while len(clock) >= 7:
+                lvl_cards = clock[:7]
+                level_up_card = next((x for x in lvl_cards if x == 'N'), None)
+                if level_up_card:
+                    lvl_cards.remove(level_up_card)
+                else:
+                    level_up_card = lvl_cards.pop(0)
+                rest.extend(lvl_cards)
+                clock = clock[7:]
+
+        while damage_list:
+            dmg_item = damage_list.pop(0)
+            check_level_up()
+
+            if isinstance(dmg_item, str) and dmg_item.startswith('fx'):
+                check_level_up()
+                refresh_deck()
+                num_fx = int(dmg_item[2:])
+                rest_N = [card for card in rest if card == 'N']
+                for _ in range(min(num_fx, len(rest_N))):
+                    rest.remove('N')
+                    deck.append('N')
+                random.shuffle(deck)
+                continue
+
+            zj_damage = None
+            if isinstance(dmg_item, tuple):
+                dmg, zj_damage = dmg_item
+            else:
+                dmg = dmg_item
+
+            while dmg > 0:
+                refresh_deck()
                 if not deck:
-                    continue
-
-                card = deck.pop(0)
-                clock.append(card)
-                if card == 'C':  # 如果是高潮卡，取消此次伤害并将计时区卡送入休息室
-                    rest += clock
-                    clock.clear()
                     break
-            else:  # 如果没有高潮卡取消伤害，统计总伤害
-                total_damage += dmg
+                card = deck.pop(0)
+                if not deck:
+                    refresh_deck()
+                clock.append(card)
+                if card == 'N':
+                    total_damage += 1
+                    dmg -= 1
+                    if dmg == 0:
+                        check_level_up()
+                else:
+                    if zj_damage:
+                        damage_list.insert(0, zj_damage)
+                    break
 
-            while len(clock) >= 7:  # 检查是否需要升级处理
-                level_up(clock, rest)
+            check_level_up()
+            refresh_deck()
 
-        damage_results.append(total_damage)
+        results.append(total_damage)
         refresh_counts.append(refresh_count)
 
-    return damage_results, refresh_counts
+    return results, refresh_counts
 
-def level_up(clock, rest):
-    # 优先升级非高潮卡
-    for i in range(7):
-        if clock[i] == 'N':
-            clock.pop(i)
-            break
-    else:
-        clock.pop(0)  # 如果计时区全是高潮卡，则随便移除一张
-    rest += clock[:6]  # 其余6张卡送入休息室
-    del clock[:6]  # 从计时区移除这6张卡
 
 class WeissSimulator:
     def __init__(self, master):
         self.master = master
-        master.title("Weiß Schwarz 伤害模拟计算器")
-        master.geometry("850x700")
+        master.title("Weiß Schwarz伤害模拟计算器")
+        master.geometry("900x700")
 
-        self.setup_ui()
-
-    def setup_ui(self):
-        frame = ttk.LabelFrame(self.master, text="输入参数")
+        frame = ttk.LabelFrame(master, text="输入参数")
         frame.pack(padx=10, pady=10, fill='x')
 
-        author_label = ttk.Label(self.master, text="程序由NoFaMe制作 © 2025")
-        author_label.pack(side='bottom', fill='x', pady=10)
-
         labels = ["牌组大小(D):", "牌组高潮卡数(N):", "休息室总数(R):", "休息室高潮数(RC):",
-                  "计时区总数(C):", "计时区高潮数(CC):", "伤害序列(如1,1,1,3,3,3,2):"]
+                  "计时区总数(C):", "计时区高潮数(CC):", "伤害序列(如1,fx4,2zj3):"]
         self.entries = []
         for i, text in enumerate(labels):
             ttk.Label(frame, text=text).grid(row=i, column=0, padx=5, pady=5, sticky='e')
@@ -91,47 +109,75 @@ class WeissSimulator:
             entry.grid(row=i, column=1, padx=5, pady=5)
             self.entries.append(entry)
 
-        ttk.Button(frame, text="开始模拟", command=self.start_simulation).grid(row=7, column=0, columnspan=2, pady=10)
+        tips = ttk.Label(frame, text="特殊伤害说明:\n"
+                                     "反洗(fx)：例如fx4代表从休息室随机洗回4张非高潮卡到卡组\n"
+                                     "取消追加(zj)：如2zj3代表2点伤害若取消则追加3点伤害", 
+                         foreground='blue', justify='left')
+        tips.grid(row=0, column=2, rowspan=7, padx=10, pady=5, sticky='nw')
 
-        self.result_frame = ttk.LabelFrame(self.master, text="模拟结果")
+        ttk.Button(frame, text="开始模拟", command=self.start_simulation).grid(row=7, column=1, pady=10)
+
+        author_label = ttk.Label(master, text="程序由NoFaMe制作 © 2025")
+        author_label.pack(side='bottom', pady=5)
+
+        self.result_frame = ttk.LabelFrame(master, text="模拟结果")
         self.result_frame.pack(padx=10, pady=10, fill='both', expand=True)
 
+        # 绑定窗口关闭事件
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+
     def start_simulation(self):
-        params = []
         try:
-            for entry in self.entries[:6]:
-                params.append(int(entry.get()))
-            damage_list = [int(x.strip()) for x in self.entries[6].get().split(',')]
-            params.append(damage_list)
+            D, N, R, RC, C, CC = [int(e.get()) for e in self.entries[:6]]
+            dmg_seq_str = self.entries[6].get().split(',')
+            damage_seq = []
+            for dmg in dmg_seq_str:
+                dmg = dmg.strip()
+                if dmg.startswith('fx'):
+                    damage_seq.append(dmg)
+                elif 'zj' in dmg:
+                    base, extra = dmg.split('zj')
+                    damage_seq.append((int(base), int(extra)))
+                else:
+                    damage_seq.append(int(dmg))
         except ValueError:
-            tk.messagebox.showerror("错误", "请确保所有输入项均为有效数字。")
+            messagebox.showerror("输入错误", "请检查输入的参数格式是否正确！")
             return
 
-        damage_results, refresh_counts = simulate(*params)
-        self.plot_results(damage_results, refresh_counts)
+        dmg_results, refreshes = simulate(D, N, R, RC, C, CC, damage_seq)
+        self.plot_results(dmg_results, refreshes)
 
-    def plot_results(self, dmg_results, refresh_counts):
+    def plot_results(self, dmg_results, refreshes):
         for widget in self.result_frame.winfo_children():
             widget.destroy()
 
         max_dmg = max(dmg_results)
-        dmg_range = range(max_dmg + 1)
-        probs = [np.mean([x >= d for x in dmg_results]) for d in dmg_range]
+        probs = [np.mean([x >= i for x in dmg_results]) for i in range(max_dmg+1)]
 
-        fig, ax = plt.subplots(figsize=(8,4))
-        bars = ax.bar(dmg_range, probs, color='skyblue', edgecolor='black')
+        self.fig, ax = plt.subplots(figsize=(8, 4))  # 保存 fig 对象以便关闭时清理
+        bars = ax.bar(range(max_dmg+1), probs, color='skyblue', edgecolor='black')
         ax.set_xlabel("至少命中的总伤害数")
         ax.set_ylabel("概率")
-        avg_refresh = np.mean(refresh_counts)
+        avg_refresh = np.mean(refreshes)
         ax.set_title(f"伤害概率分布 (平均卡组更新次数：{avg_refresh:.2f})")
 
         for bar in bars:
             h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, h, f"{h:.3f}", ha='center', va='bottom', fontsize=8)
+            if h > 0.001:
+                ax.text(bar.get_x() + bar.get_width()/2, h, f'{h:.3f}', ha='center', va='bottom', fontsize=8)
 
-        canvas = FigureCanvasTkAgg(fig, master=self.result_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill='both', expand=True)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.result_frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill='both', expand=True)
+
+    def on_closing(self):
+        # 关闭 Matplotlib 图表并销毁 Tkinter 窗口
+        if hasattr(self, 'fig'):
+            plt.close(self.fig)  # 关闭 Matplotlib Figure
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()  # 销毁 Canvas
+        self.master.quit()  # 退出 Tkinter 主循环
+        self.master.destroy()  # 销毁窗口
 
 if __name__ == "__main__":
     root = tk.Tk()
