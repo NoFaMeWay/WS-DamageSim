@@ -31,6 +31,7 @@ def simulate(D, N, R, RC, C, CC, damage_seq, draw_card=False, trials=100000):
                 if deck:
                     clock.append(deck.pop(0))
                     total_damage += 1
+                    check_level_up()
 
         def check_level_up():
             nonlocal clock, rest, level_up_count
@@ -43,15 +44,16 @@ def simulate(D, N, R, RC, C, CC, damage_seq, draw_card=False, trials=100000):
                     level_up_card = lvl_cards.pop(0)
                 rest.extend(lvl_cards)
                 clock = clock[7:]
-                level_up_count += 1  # 每次升级计数
+                level_up_count += 1
 
         while damage_list:
             dmg_item = damage_list.pop(0)
+            refresh_deck()
             check_level_up()
 
             if isinstance(dmg_item, str) and dmg_item.startswith('fx'):
-                check_level_up()
                 refresh_deck()
+                check_level_up()
                 num_fx = int(dmg_item[2:])
                 rest_N = [card for card in rest if card == 'N']
                 for _ in range(min(num_fx, len(rest_N))):
@@ -66,36 +68,38 @@ def simulate(D, N, R, RC, C, CC, damage_seq, draw_card=False, trials=100000):
             else:
                 dmg = dmg_item
 
-            while dmg > 0:
-                refresh_deck()
+            # 处理伤害
+            processing_zone = []  # 临时处理区
+            for _ in range(dmg):
+                refresh_deck()  # 翻卡前检查卡组是否为空
                 if not deck:
-                    break
+                    break  # 若卡组和休息室都为空，停止翻卡
                 card = deck.pop(0)
-                if not deck:
-                    refresh_deck()
-                clock.append(card)
-                if card == 'N':
-                    total_damage += 1
-                    dmg -= 1
-                    if dmg == 0:
-                        check_level_up()
-                else:
-                    if zj_damage:
-                        damage_list.insert(0, zj_damage)
+                processing_zone.append(card)
+                if card == 'C':  # 翻到高潮卡，取消伤害
                     break
+
+            # 处理翻出的卡
+            if 'C' in processing_zone:  # 若有高潮卡，取消伤害，所有卡送休息室
+                rest.extend(processing_zone)
+                if zj_damage:  # 如果有取消追加伤害
+                    damage_list.insert(0, zj_damage)
+            else:  # 无高潮卡，所有卡送计时区
+                clock.extend(processing_zone)
+                total_damage += len(processing_zone)  
 
             check_level_up()
             refresh_deck()
 
         # 在所有伤害处理完成后，检查是否抽1张牌
         if draw_card:
-            refresh_deck()  # 确保卡组不为空
-            if deck:  # 如果卡组有牌
-                card = deck.pop(0)  # 抽1张牌（理解为删除）
-                if not deck:  # 若抽牌后卡组为空，触发更新
+            refresh_deck()
+            if deck:
+                card = deck.pop(0)
+                if not deck:
                     refresh_deck()
-                clock.append(card)  # 将抽的牌放入 clock 以检查升级
-                check_level_up()  # 检查是否触发升级
+                clock.append(card)
+                check_level_up()
 
         results.append(total_damage)
         refresh_counts.append(refresh_count)
