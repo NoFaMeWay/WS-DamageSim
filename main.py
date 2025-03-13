@@ -8,8 +8,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用于显示中文标签
 plt.rcParams['axes.unicode_minus'] = False  # 用于显示负号
 
-def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
-    results, refresh_counts = [], []
+def simulate(D, N, R, RC, C, CC, damage_seq, draw_card=False, trials=100000):
+    results, refresh_counts, level_up_counts = [], [], []
     for _ in range(trials):
         deck = ['C'] * N + ['N'] * (D - N)
         rest = ['C'] * RC + ['N'] * (R - RC)
@@ -19,6 +19,7 @@ def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
         random.shuffle(clock)
         refresh_count = 0
         total_damage = 0
+        level_up_count = 0
         damage_list = damage_seq.copy()
 
         def refresh_deck():
@@ -32,7 +33,7 @@ def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
                     total_damage += 1
 
         def check_level_up():
-            nonlocal clock, rest
+            nonlocal clock, rest, level_up_count
             while len(clock) >= 7:
                 lvl_cards = clock[:7]
                 level_up_card = next((x for x in lvl_cards if x == 'N'), None)
@@ -42,6 +43,7 @@ def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
                     level_up_card = lvl_cards.pop(0)
                 rest.extend(lvl_cards)
                 clock = clock[7:]
+                level_up_count += 1  # 每次升级计数
 
         while damage_list:
             dmg_item = damage_list.pop(0)
@@ -85,10 +87,21 @@ def simulate(D, N, R, RC, C, CC, damage_seq, trials=100000):
             check_level_up()
             refresh_deck()
 
+        # 在所有伤害处理完成后，检查是否抽1张牌
+        if draw_card:
+            refresh_deck()  # 确保卡组不为空
+            if deck:  # 如果卡组有牌
+                card = deck.pop(0)  # 抽1张牌（理解为删除）
+                if not deck:  # 若抽牌后卡组为空，触发更新
+                    refresh_deck()
+                clock.append(card)  # 将抽的牌放入 clock 以检查升级
+                check_level_up()  # 检查是否触发升级
+
         results.append(total_damage)
         refresh_counts.append(refresh_count)
+        level_up_counts.append(level_up_count)
 
-    return results, refresh_counts
+    return results, refresh_counts, level_up_counts
 
 
 class WeissSimulator:
@@ -101,7 +114,7 @@ class WeissSimulator:
         frame.pack(padx=10, pady=10, fill='x')
 
         labels = ["牌组大小(D):", "牌组高潮卡数(N):", "休息室总数(R):", "休息室高潮数(RC):",
-                  "计时区总数(C):", "计时区高潮数(CC):", "伤害序列(如1,fx4,2zj3):"]
+                  "计时区总数(C):", "计时区高潮数(CC):", "伤害序列(使用英文逗号隔开如1,fx4,2zj3):"]
         self.entries = []
         for i, text in enumerate(labels):
             ttk.Label(frame, text=text).grid(row=i, column=0, padx=5, pady=5, sticky='e')
@@ -115,6 +128,12 @@ class WeissSimulator:
                          foreground='blue', justify='left')
         tips.grid(row=0, column=2, rowspan=7, padx=10, pady=5, sticky='nw')
 
+        # 添加开关：是否抽1张牌
+        self.draw_card_var = tk.BooleanVar(value=False)  # 默认关闭
+        draw_card_check = ttk.Checkbutton(frame, text="结束后抽1张牌到手牌", 
+                                         variable=self.draw_card_var)
+        draw_card_check.grid(row=7, column=0, padx=5, pady=5, sticky='w')
+
         ttk.Button(frame, text="开始模拟", command=self.start_simulation).grid(row=7, column=1, pady=10)
 
         author_label = ttk.Label(master, text="程序由NoFaMe制作 © 2025")
@@ -123,7 +142,6 @@ class WeissSimulator:
         self.result_frame = ttk.LabelFrame(master, text="模拟结果")
         self.result_frame.pack(padx=10, pady=10, fill='both', expand=True)
 
-        # 绑定窗口关闭事件
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def start_simulation(self):
@@ -144,22 +162,25 @@ class WeissSimulator:
             messagebox.showerror("输入错误", "请检查输入的参数格式是否正确！")
             return
 
-        dmg_results, refreshes = simulate(D, N, R, RC, C, CC, damage_seq)
-        self.plot_results(dmg_results, refreshes)
+        # 传递开关状态给 simulate
+        draw_card = self.draw_card_var.get()
+        dmg_results, refreshes, level_ups = simulate(D, N, R, RC, C, CC, damage_seq, draw_card)
+        self.plot_results(dmg_results, refreshes, level_ups)
 
-    def plot_results(self, dmg_results, refreshes):
+    def plot_results(self, dmg_results, refreshes, level_ups):
         for widget in self.result_frame.winfo_children():
             widget.destroy()
 
         max_dmg = max(dmg_results)
         probs = [np.mean([x >= i for x in dmg_results]) for i in range(max_dmg+1)]
 
-        self.fig, ax = plt.subplots(figsize=(8, 4))  # 保存 fig 对象以便关闭时清理
+        self.fig, ax = plt.subplots(figsize=(8, 4))
         bars = ax.bar(range(max_dmg+1), probs, color='skyblue', edgecolor='black')
         ax.set_xlabel("至少命中的总伤害数")
         ax.set_ylabel("概率")
         avg_refresh = np.mean(refreshes)
-        ax.set_title(f"伤害概率分布 (平均卡组更新次数：{avg_refresh:.2f})")
+        avg_level_up = np.mean(level_ups)
+        ax.set_title(f"伤害概率分布 (平均卡组更新次数：{avg_refresh:.2f}, 平均升级次数：{avg_level_up:.2f})")
 
         for bar in bars:
             h = bar.get_height()
@@ -171,13 +192,12 @@ class WeissSimulator:
         self.canvas.get_tk_widget().pack(fill='both', expand=True)
 
     def on_closing(self):
-        # 关闭 Matplotlib 图表并销毁 Tkinter 窗口
         if hasattr(self, 'fig'):
-            plt.close(self.fig)  # 关闭 Matplotlib Figure
+            plt.close(self.fig)
         if hasattr(self, 'canvas'):
-            self.canvas.get_tk_widget().destroy()  # 销毁 Canvas
-        self.master.quit()  # 退出 Tkinter 主循环
-        self.master.destroy()  # 销毁窗口
+            self.canvas.get_tk_widget().destroy()
+        self.master.quit()
+        self.master.destroy()
 
 if __name__ == "__main__":
     root = tk.Tk()
