@@ -5,7 +5,7 @@
 ## 功能特点
 - 支持卡组更新、升级
 - 可视化伤害概率分布及平均卡组更新次数。
-
+-（新）支持保存配置比较分析，自定义卡片操作和判断，更多特殊伤害
 ## 使用方法
 1. 下载可执行文件。
 2. 运行程序，输入牌组大小、高潮卡数、休息室卡片数等参数。
@@ -17,4 +17,4 @@
 
 ## 贡献
 欢迎提交 Issue 或 Pull Request！
-![image](https://github.com/user-attachments/assets/52c0b3b8-3a64-487d-8b29-c5125fc403a8)
+![image](https://github.com/user-attachments/assets/55f46c26-19c9-4b45-bbf9-8c24030da14e)
