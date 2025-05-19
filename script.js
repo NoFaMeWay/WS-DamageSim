@@ -502,7 +502,7 @@ function formatDamageSeq(seq) {
 }
 
 // 模拟函数
-function simulate(D, N, R, RC, C, CC, damageSeq, drawCard, sampleSize = 500000) {
+function simulate(D, N, R, RC, C, CC, damageSeq, drawCard, sampleSize = 100000) {
     // 结果数组
     const damages = [];
     const refreshes = [];
