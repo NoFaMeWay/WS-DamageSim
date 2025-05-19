@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Weiß Schwarz伤害模拟计算器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            margin: 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            padding: 10px 0;
+            margin-bottom: 15px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"], input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        button {
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .results {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            min-height: 200px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .tab {
+            padding: 10px;
+            background-color: #ddd;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            margin-right: 2px;
+        }
+        .tab.active {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-bottom: none;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .switch-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .switch-container label {
+            margin: 0 0 0 10px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 5px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+        @media (max-width: 600px) {
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Weiß Schwarz伤害模拟计算器</h1>
+    </header>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="simulator">模拟器</div>
+        <div class="tab" data-tab="help">帮助</div>
+    </div>
+
+    <div id="simulator" class="tab-content active">
+        <div class="form-group">
+            <label for="deckSize">牌组大小(D):</label>
+            <input type="number" id="deckSize" value="50" min="1">
+        </div>
+        
+        <div class="form-group">
+            <label for="climaxCount">高潮卡数(N):</label>
+            <input type="number" id="climaxCount" value="8" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="restCount">休息室总数(R):</label>
+            <input type="number" id="restCount" value="0" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="restClimax">休息室高潮数(RC):</label>
+            <input type="number" id="restClimax" value="0" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="clockCount">计时区总数(C):</label>
+            <input type="number" id="clockCount" value="0" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="clockClimax">计时区高潮数(CC):</label>
+            <input type="number" id="clockClimax" value="0" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="damageSeq">伤害序列:</label>
+            <textarea id="damageSeq" rows="3" placeholder="例如: 1,2,3zj(2),fx4"></textarea>
+        </div>
+        
+        <div class="switch-container">
+            <label class="switch">
+                <input type="checkbox" id="drawCard">
+                <span class="slider"></span>
+            </label>
+            <label for="drawCard">结束后抽1张牌到手牌</label>
+        </div>
+        
+        <div class="button-group">
+            <button id="simulate">开始模拟</button>
+            <button id="parseSequence">解析伤害序列</button>
+            <button id="loadExample">载入示例</button>
+            <button id="showHelp">查看帮助</button>
+        </div>
+        
+        <h3>模拟结果</h3>
+        <div class="results" id="results">
+            模拟结果将显示在这里...
+        </div>
+    </div>
+
+    <div id="help" class="tab-content">
+        <h2>伤害序列格式说明</h2>
+        <p>本程序支持复杂的伤害序列语法，包括：</p>
+        
+        <h3>基本语法</h3>
+        <ul>
+            <li><strong>基本伤害</strong>：用数字表示，如1,2,3</li>
+            <li><strong>反洗操作</strong>：fx后接数字，如fx4表示反洗4张非高潮卡</li>
+            <li><strong>追加伤害</strong>：数字+zj(数字)，如2zj(3)表示2点伤害取消后追加3点</li>
+            <li><strong>传火追加</strong>：*数字+zj(数字)，如*2zj(2)表示2点伤害取消后追加2点，并使下一个伤害获得相同效果</li>
+            <li><strong>卡片移动</strong>：DT>RS表示从卡组顶部移动到休息室，DT>CL表示从卡组顶部移动到计时区</li>
+            <li><strong>条件判断</strong>：DT>RS4:C+zj(2)表示从卡组顶部移动4张牌到休息室，如果包含高潮卡则追加2点伤害</li>
+        </ul>
+        
+        <h3>位置代码</h3>
+        <ul>
+            <li><strong>DT</strong>：卡组顶部(Deck Top)</li>
+            <li><strong>DB</strong>：卡组底部(Deck Bottom)</li>
+            <li><strong>RS</strong>：休息室(Rest)</li>
+            <li><strong>CL</strong>：计时区(Clock)</li>
+        </ul>
+        
+        <h3>示例</h3>
+        <pre>
+1,2,3           - 连续造成1点、2点和3点伤害
+2zj(3)          - 造成2点伤害，若取消则追加3点伤害
+1,fx4,3         - 造成1点伤害，反洗4张非高潮卡，造成3点伤害
+DT>RS4:C+zj(2)  - 从卡组顶部移动4张牌到休息室，如果包含高潮卡则追加2点伤害
+*2zj(2),3,4     - 传火追加示例
+        </pre>
+        
+        <button id="backToSimulator">返回模拟器</button>
+    </div>
+
+    <!-- 解析伤害序列对话框 -->
+    <div id="parseModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>伤害序列解析预览</h2>
+            <div id="parseResult" style="white-space: pre-wrap; font-family: monospace;"></div>
+            <div style="margin-top: 15px;">
+                <button id="copySequence">复制伤害序列</button>
+                <button id="closeParseModal">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 载入示例对话框 -->
+    <div id="exampleModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>选择示例</h2>
+            <div>
+                <p><strong>传火追加示例:</strong> 2点伤害若取消则追加2点伤害，并使下一个伤害获得相同效果</p>
+                <button class="example-btn" data-example="*2zj(2),3,4">载入</button>
+            </div>
+            <div style="margin-top: 15px;">
+                <p><strong>传火追加叠加示例:</strong> 展示特殊追加效果的叠加机制</p>
+                <button class="example-btn" data-example="*2zj(1),*3zj(2),4">载入</button>
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="closeExampleModal">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>确认</h2>
+            <div id="confirmContent"></div>
+            <div style="margin-top: 15px;">
+                <button id="confirmYes">是</button>
+                <button id="confirmNo">否</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示对话框 -->
+    <div id="alertModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="alertTitle">提示</h2>
+            <div id="alertContent"></div>
+            <div style="margin-top: 15px;">
+                <button id="alertOk">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        程序由NoFaMe制作 © 2025
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
