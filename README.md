@@ -18,3 +18,7 @@
 ## 贡献
 欢迎提交 Issue 或 Pull Request！
 ![image](https://github.com/user-attachments/assets/55f46c26-19c9-4b45-bbf9-8c24030da14e)
+
+## 网页版测试：
+https://nofameway.github.io/WS-DamageSim/
+![image](https://github.com/user-attachments/assets/c4eb520c-2e59-451a-a274-c45319a1f4dd)
