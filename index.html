@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Weiß Schwarz 伤害模拟计算器</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ==================== CSS Variables ==================== */
+        :root {
+            --bg: #0a0a14;
+            --bg2: #10101e;
+            --surface: #16162a;
+            --surface2: #1c1c34;
+            --border: #262648;
+            --border-hover: #383868;
+            --text: #e4e4f0;
+            --text2: #8e8eb0;
+            --text3: #5e5e7a;
+            --accent: #c9a84c;
+            --accent2: #dbb858;
+            --accent-dim: rgba(201, 168, 76, 0.12);
+            --danger: #d4687a;
+            --danger-dim: rgba(212, 104, 122, 0.12);
+            --radius: 10px;
+            --radius-sm: 6px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', system-ui, -apple-system, sans-serif;
+            --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.04) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Global scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+        /* Selection */
+        ::selection { background: var(--accent-dim); color: var(--accent); }
+
+        /* ==================== Layout ==================== */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 20px 16px 12px;
+        }
+
+        /* ==================== Header ==================== */
+        .app-header {
+            text-align: left;
+            padding: 24px 24px 20px;
+            margin-bottom: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .app-header h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: var(--text);
+        }
+        .app-header h1 span {
+            color: var(--accent);
+        }
+        .app-header .subtitle {
+            font-size: 0.75rem;
+            color: var(--text3);
+            margin-top: 2px;
+            letter-spacing: 0.03em;
+        }
+
+        /* ==================== Tab Navigation ==================== */
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab-btn {
+            padding: 10px 18px 11px;
+            border: none;
+            background: transparent;
+            color: var(--text3);
+            font-family: var(--font);
+            font-size: 0.84rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            position: relative;
+            letter-spacing: 0.02em;
+        }
+        .tab-btn::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; right: 0;
+            height: 2px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.2s ease;
+        }
+        .tab-btn:hover { color: var(--text2); }
+        .tab-btn.active {
+            color: var(--accent);
+        }
+        .tab-btn.active::after {
+            transform: scaleX(1);
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; animation: fadeIn 0.2s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* ==================== Cards ==================== */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 14px;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .card-header h3 {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        /* ==================== Form ==================== */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 16px;
+        }
+        @media (max-width: 500px) { .form-grid { grid-template-columns: 1fr; } }
+
+        .form-group { display: flex; flex-direction: column; gap: 3px; }
+        .form-group.full { grid-column: 1 / -1; }
+
+        .form-label {
+            font-size: 0.76rem;
+            font-weight: 600;
+            color: var(--text2);
+            letter-spacing: 0.02em;
+        }
+        .form-label .hint {
+            color: var(--text3);
+            font-weight: 400;
+            font-size: 0.7rem;
+        }
+
+        input[type="number"], textarea {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 0.9rem;
+            transition: var(--transition);
+            width: 100%;
+            outline: none;
+        }
+        input[type="number"]:focus, textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 68px;
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        /* Presets */
+        .preset-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .preset-chip {
+            padding: 4px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--text2);
+            font-size: 0.74rem;
+            font-family: var(--font);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .preset-chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        /* Toggle Switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 40px; height: 22px;
+            flex-shrink: 0;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: var(--border);
+            border-radius: 22px;
+            transition: var(--transition);
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 16px; width: 16px;
+            left: 3px; bottom: 3px;
+            background: var(--text3);
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+        .toggle input:checked + .toggle-slider { background: var(--accent); }
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+            background: #fff;
+        }
+        .toggle-label {
+            font-size: 0.82rem;
+            color: var(--text2);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* ==================== Buttons ==================== */
+        .btn {
+            padding: 9px 18px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            font-family: var(--font);
+            font-size: 0.84rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            letter-spacing: 0.02em;
+            background: transparent;
+        }
+        .btn:active { transform: scale(0.98); }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #1a1a10;
+        }
+        .btn-primary:hover { background: var(--accent2); }
+
+        .btn-accent {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #1a1a10;
+        }
+        .btn-accent:hover { background: var(--accent2); }
+
+        .btn-outline {
+            border-color: var(--border);
+            color: var(--text2);
+        }
+        .btn-outline:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+        .btn-sm { padding: 5px 12px; font-size: 0.76rem; }
+        .btn-danger {
+            border-color: var(--danger-dim);
+            color: var(--danger);
+        }
+        .btn-danger:hover { background: var(--danger-dim); }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        /* ==================== Stat Display ==================== */
+        .stat-row {
+            display: flex;
+            gap: 1px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .stat-item {
+            flex: 1;
+            padding: 14px 12px;
+            text-align: center;
+            background: var(--surface2);
+        }
+        .stat-item .value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: var(--mono);
+            line-height: 1.15;
+            color: var(--accent);
+        }
+        .stat-item .label {
+            font-size: 0.7rem;
+            color: var(--text3);
+            margin-top: 3px;
+            letter-spacing: 0.04em;
+        }
+
+        /* ==================== Chart Container ==================== */
+        .chart-wrap {
+            position: relative;
+            width: 100%;
+            margin-bottom: 14px;
+        }
+        .chart-wrap canvas { width: 100% !important; }
+
+        /* ==================== Probability Table ==================== */
+        .prob-table-wrap {
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .prob-table-wrap::-webkit-scrollbar { width: 5px; }
+        .prob-table-wrap::-webkit-scrollbar-track { background: transparent; }
+        .prob-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .prob-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            font-family: var(--mono);
+        }
+        .prob-table th, .prob-table td {
+            padding: 7px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .prob-table th {
+            background: var(--surface2);
+            color: var(--text3);
+            font-weight: 600;
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .prob-table td { color: var(--text2); }
+        .prob-table tr:hover td { background: rgba(255,255,255,0.015); }
+        .prob-table .highlight td { color: var(--accent); font-weight: 600; }
+
+        /* ==================== Progress Bar ==================== */
+        .progress-bar-wrap {
+            height: 3px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.2s ease;
+            width: 0%;
+        }
+        .progress-text {
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        /* ==================== Help Sections ==================== */
+        .help-section {
+            margin-bottom: 16px;
+        }
+        .help-section summary {
+            cursor: pointer;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.86rem;
+            color: var(--text);
+            transition: var(--transition);
+            list-style: none;
+            user-select: none;
+        }
+        .help-section summary::-webkit-details-marker { display: none; }
+        .help-section summary::before {
+            content: '+ ';
+            color: var(--accent);
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            margin-right: 2px;
+        }
+        .help-section[open] summary::before { content: '- '; }
+        .help-section summary:hover { border-color: var(--border-hover); }
+        .help-section .help-body {
+            padding: 14px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+            font-size: 0.82rem;
+            line-height: 1.65;
+            color: var(--text2);
+        }
+        .help-body code {
+            background: var(--surface);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--accent);
+            border: 1px solid var(--border);
+        }
+        .help-body .example-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin: 6px 0;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--text2);
+            white-space: pre-wrap;
+        }
+
+        /* ==================== Config List ==================== */
+        .config-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 6px;
+            transition: border-color 0.15s ease, background 0.15s ease;
+            gap: 12px;
+            cursor: default;
+        }
+        .config-item:hover { border-color: var(--border-hover); }
+        .config-item .config-name {
+            font-weight: 600;
+            font-size: 0.88rem;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .config-item .config-meta {
+            font-size: 0.7rem;
+            color: var(--text3);
+            white-space: nowrap;
+        }
+        .config-item .config-actions { display: flex; gap: 6px; }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text3);
+        }
+
+        /* ==================== Compare ==================== */
+        .compare-select {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+        .compare-chip {
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--text2);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .compare-chip.selected {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        /* ==================== Toast ==================== */
+        .toast-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 10px 18px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            font-size: 0.82rem;
+            color: var(--text);
+            animation: slideIn 0.25s ease;
+            pointer-events: auto;
+            max-width: 340px;
+        }
+        .toast.success { border-left: 2px solid var(--accent); }
+        .toast.error { border-left: 2px solid var(--danger); }
+        .toast.info { border-left: 2px solid var(--accent); }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ==================== Modal ==================== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(3px);
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px 24px;
+            max-width: 520px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+            animation: modalIn 0.2s ease;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal h3 { margin-bottom: 12px; font-size: 0.95rem; font-weight: 600; }
+        .modal .btn-group { justify-content: flex-end; }
+
+        /* ==================== Footer ==================== */
+        .app-footer {
+            text-align: center;
+            padding: 14px;
+            color: var(--text3);
+            font-size: 0.7rem;
+            letter-spacing: 0.03em;
+        }
+
+        /* ==================== Responsive ==================== */
+        @media (max-width: 600px) {
+            .app-container { padding: 10px 8px; }
+            .app-header { padding: 18px 16px 14px; }
+            .app-header h1 { font-size: 1.15rem; }
+            .card { padding: 14px 16px; }
+            .tab-btn { font-size: 0.76rem; padding: 8px 10px 9px; }
+            .stat-item .value { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- ===== Header ===== -->
+    <header class="app-header">
+        <h1>Wei&szlig; Schwarz <span>伤害模拟计算器</span></h1>
+        <p class="subtitle">Damage Simulation Probability Calculator</p>
+    </header>
+
+    <!-- ===== Tab Navigation ===== -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="sim">模拟器</button>
+        <button class="tab-btn" data-tab="help">帮助</button>
+        <button class="tab-btn" data-tab="configs">配置</button>
+        <button class="tab-btn" data-tab="compare">对比</button>
+    </nav>
+
+    <!-- ===== Simulator Tab ===== -->
+    <div class="tab-panel active" id="tab-sim">
+        <!-- Deck Params -->
+        <div class="card">
+            <div class="card-header"><h3>牌组参数</h3></div>
+            <div class="preset-row" id="presetRow">
+                <button class="preset-chip" data-preset="standard">标准 50/8</button>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">牌组大小 <span class="hint">(D)</span></label>
+                    <input type="number" id="deckSize" value="50" min="1" max="200">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">高潮卡数 <span class="hint">(N)</span></label>
+                    <input type="number" id="climaxCount" value="8" min="0" max="200">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">休息室总数 <span class="hint">(R)</span></label>
+                    <input type="number" id="restCount" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">休息室高潮数 <span class="hint">(RC)</span></label>
+                    <input type="number" id="restClimax" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">计时区总数 <span class="hint">(C)</span></label>
+                    <input type="number" id="clockCount" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">计时区高潮数 <span class="hint">(CC)</span></label>
+                    <input type="number" id="clockClimax" value="0" min="0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Damage Sequence -->
+        <div class="card">
+            <div class="card-header"><h3>伤害序列</h3></div>
+            <div class="form-group full">
+                <textarea id="damageSeq" placeholder="输入伤害序列，例如: 1,2,3 或 2zj(3),fx4 或 *2zj(2),3,4" rows="2"></textarea>
+            </div>
+            <div class="toggle-row">
+                <label class="toggle">
+                    <input type="checkbox" id="drawCard">
+                    <span class="toggle-slider"></span>
+                </label>
+                <label class="toggle-label" for="drawCard">伤害步骤结束后抽1张牌到手牌</label>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="btnSimulate">开始模拟</button>
+                <button class="btn btn-outline" id="btnParse">解析序列</button>
+                <button class="btn btn-outline" id="btnExamples">载入示例</button>
+                <button class="btn btn-outline btn-sm" id="btnQuickHelp">快速帮助</button>
+            </div>
+            <div class="progress-bar-wrap" id="progressWrap" style="display:none;">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-text" id="progressText" style="display:none;"></p>
+        </div>
+
+        <!-- Results -->
+        <div class="card" id="resultsCard" style="display:none;">
+            <div class="card-header"><h3>模拟结果</h3>
+                <div style="margin-left:auto;display:flex;gap:6px;">
+                    <button class="btn btn-outline btn-sm" id="btnSaveResult">保存</button>
+                    <button class="btn btn-outline btn-sm" id="btnExportCSV">导出 CSV</button>
+                </div>
+            </div>
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="value" id="statDmg">--</div>
+                    <div class="label">期望伤害</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="statRefresh">--</div>
+                    <div class="label">平均洗牌</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="statLevelUp">--</div>
+                    <div class="label">平均升级</div>
+                </div>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="probChart"></canvas>
+            </div>
+            <details style="margin-top:8px;">
+                <summary style="cursor:pointer;font-size:0.85rem;color:var(--text3);padding:4px 0;">详细概率表 ▾</summary>
+                <div class="prob-table-wrap" style="margin-top:8px;">
+                    <table class="prob-table" id="probTable">
+                        <thead><tr><th>伤害 ≥</th><th>概率</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <!-- ===== Help Tab ===== -->
+    <div class="tab-panel" id="tab-help">
+        <div class="card">
+            <div class="card-header"><h3>伤害序列语法参考</h3></div>
+            <details class="help-section" open>
+                <summary>基本伤害操作</summary>
+                <div class="help-body">
+                    <p><strong>基本伤害：</strong>纯数字表示几点伤害</p>
+                    <div class="example-block">1,2,3   → 依次造成 1点、2点、3点伤害</div>
+                    <p style="margin-top:10px;"><strong>反洗 (fx)：</strong>从休息室随机洗回指定数量的非高潮卡到牌组</p>
+                    <div class="example-block">fx4     → 从休息室随机洗回4张非高潮卡</div>
+                    <p style="margin-top:10px;"><strong>取消追加 (zj)：</strong>若当前伤害被高潮卡取消，则执行括号内的追加效果</p>
+                    <div class="example-block">2zj(3)  → 2点伤害，若被取消则追加3点伤害
+4zj(3,fx4,2) → 4点伤害若取消，追加3点伤害、反洗4张、再2点伤害</div>
+                </div>
+            </details>
+            <details class="help-section">
+                <summary>传火追加 (*zj)</summary>
+                <div class="help-body">
+                    <p>若当前伤害被高潮卡取消，则执行追加效果，<strong>并使下一个伤害也获得相同效果</strong></p>
+                    <div class="example-block">*2zj(2),3,4      → 2点若取消：追加2点 + 下一个伤害也获得此效果
+*2zj(1),*3zj(2),4 → 多个传火效果可叠加</div>
+                </div>
+            </details>
+            <details class="help-section">
+                <summary>卡片移动操作</summary>
+                <div class="help-body">
+                    <p>格式：<code>源位置&gt;目标位置[数量]</code></p>
+                    <p>位置代码：<code>DT</code>=牌组顶部 <code>DB</code>=牌组底部 <code>RS</code>=休息室 <code>CL</code>=计时区 <code>HD</code>=手牌</p>
+                    <div class="example-block">DT&gt;RS3  → 从牌组顶部移3张到休息室
+DT&gt;CL   → 从牌组顶部移1张到计时区（1点伤害）
+RS&gt;DT2  → 从休息室移2张到牌组顶部</div>
+                </div>
+            </details>
+            <details class="help-section">
+                <summary>条件判断操作</summary>
+                <div class="help-body">
+                    <p>格式：<code>移动操作:条件+zj(追加内容)</code></p>
+                    <p>条件：<code>C</code>=高潮卡 <code>N</code>=普通卡</p>
+                    <div class="example-block">DT&gt;RS4:C+zj(2)  → 从牌组顶移4张到休息室，若含高潮卡则追加2点伤害
+DT&gt;CL3:N+zj(1,fx2) → 从牌组顶移3张到计时区，若含普通卡则追加1点伤害+反洗2张</div>
+                </div>
+            </details>
+            <details class="help-section">
+                <summary>卡片添加/移除</summary>
+                <div class="help-body">
+                    <p>格式：<code>位置+/-卡片类型</code></p>
+                    <div class="example-block">DT+C  → 牌组顶部添加一张高潮卡
+CL-N  → 计时区移除一张普通卡
+RS+N  → 休息室添加一张普通卡</div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <!-- ===== Configs Tab ===== -->
+    <div class="tab-panel" id="tab-configs">
+        <div class="card">
+            <div class="card-header"><h3>已保存的配置</h3>
+                <div style="margin-left:auto;display:flex;gap:6px;">
+                    <button class="btn btn-outline btn-sm" id="btnExportAll">导出全部</button>
+                    <button class="btn btn-outline btn-sm" id="btnClearAll">清空</button>
+                </div>
+            </div>
+            <div id="configList">
+                <div class="empty-state">
+                    <p>暂无保存的配置</p>
+                    <p style="font-size:0.78rem;">运行模拟后点击保存即可存储配置</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Compare Tab ===== -->
+    <div class="tab-panel" id="tab-compare">
+        <div class="card">
+            <div class="card-header"><h3>配置对比分析</h3></div>
+            <p style="font-size:0.82rem;color:var(--text3);margin-bottom:12px;">选择要对比的已保存配置：</p>
+            <div class="compare-select" id="compareChips"></div>
+            <div class="btn-group">
+                <button class="btn btn-accent" id="btnCompare">生成对比图表</button>
+                <button class="btn btn-outline btn-sm" id="btnSelectAll">全选</button>
+                <button class="btn btn-outline btn-sm" id="btnDeselectAll">取消全选</button>
+            </div>
+            <div id="compareResults" style="margin-top:16px;"></div>
+        </div>
+        <div class="card" id="compareChartCard" style="display:none;">
+            <div class="card-header"><h3>对比图表</h3></div>
+            <div class="chart-wrap"><canvas id="compareChart"></canvas></div>
+            <div id="compareStats" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+    <!-- ===== Footer ===== -->
+    <footer class="app-footer">NoFaMe &copy; 2025</footer>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Parse Preview Modal -->
+<div class="modal-overlay" id="parseModalOverlay">
+    <div class="modal">
+        <h3>伤害序列解析预览</h3>
+        <pre id="parseResult" style="background:var(--bg2);padding:14px;border-radius:var(--radius-sm);font-family:var(--mono);font-size:0.82rem;color:var(--text2);white-space:pre-wrap;max-height:50vh;overflow-y:auto;"></pre>
+        <div class="btn-group">
+            <button class="btn btn-outline btn-sm" id="btnCopySeq">复制序列</button>
+            <button class="btn btn-outline btn-sm" id="btnCloseParse">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- Examples Modal -->
+<div class="modal-overlay" id="exampleModalOverlay">
+    <div class="modal">
+        <h3>载入示例</h3>
+        <div id="exampleList"></div>
+        <div class="btn-group">
+            <button class="btn btn-outline btn-sm" id="btnCloseExample">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModalOverlay">
+    <div class="modal">
+        <h3 id="confirmTitle">确认</h3>
+        <p id="confirmMessage" style="color:var(--text2);margin-bottom:16px;"></p>
+        <div class="btn-group">
+            <button class="btn btn-primary btn-sm" id="btnConfirmYes">确定</button>
+            <button class="btn btn-outline btn-sm" id="btnConfirmNo">取消</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
